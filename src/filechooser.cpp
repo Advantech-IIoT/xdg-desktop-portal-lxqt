@@ -26,24 +26,27 @@
  * Boston, MA 02110-1301 USA
  *
  * END_COMMON_COPYRIGHT_HEADER */
+// Copyright (C) 2024 The Advantech Company Ltd.
+// SPDX-License-Identifier: GPL-3.0-only
 
 #include "filechooser.h"
 #include "utils.h"
-#include "filedialoghelper.h"
 
 #include <QDBusArgument>
 #include <QDBusMetaType>
-#include <QDialogButtonBox>
 #include <QFile>
-#include <QGridLayout>
-#include <QLabel>
 #include <QLoggingCategory>
 #include <QMimeDatabase>
 #include <QUrl>
-#include <QCheckBox>
-#include <QComboBox>
 #include <QDBusObjectPath>
-#include <libfm-qt6/filedialog.h>
+
+#define STR_COMMA ","
+#define STR_FILE "File"
+#define STR_DIRECTORY "Directory"
+#define FILEDIALOG_CMD_WITH_TITLE "/usr/local/bin/qtfiledialog -t '%1'"
+#define NAMEFILTER_ARG " -f '%1'"
+#define DIRECTORY_ARG " -d"
+#define STDERR_TO_NULL " 2>/dev/null"
 
 // Keep in sync with qflatpakfiledialog from flatpak-platform-plugin
 Q_DECLARE_METATYPE(LXQt::FileChooserPortal::Filter)
@@ -55,6 +58,8 @@ Q_DECLARE_METATYPE(LXQt::FileChooserPortal::Choice)
 Q_DECLARE_METATYPE(LXQt::FileChooserPortal::Choices)
 Q_DECLARE_METATYPE(LXQt::FileChooserPortal::Option)
 Q_DECLARE_METATYPE(LXQt::FileChooserPortal::OptionList)
+
+using namespace std;
 
 namespace LXQt
 {
@@ -223,76 +228,60 @@ namespace LXQt
         }
 
         ExtractFilters(options, nameFilters, allFilters, selectedNameFilter);
+        qCDebug(XdgDesktopPortalLxqtFileChooser) << "    nameFilters: " << nameFilters.join(STR_COMMA);
 
-        // for handling of options - choices
-        std::unique_ptr<QWidget> optionsWidget;
-        // to store IDs for choices along with corresponding comboboxes/checkboxes
-        QMap<QString, QCheckBox *> checkboxes;
-        QMap<QString, QComboBox *> comboboxes;
-
-        if (options.contains(QStringLiteral("choices"))) {
-            OptionList optionList = qdbus_cast<OptionList>(options.value(QStringLiteral("choices")));
-            optionsWidget.reset(CreateChoiceControls(optionList, checkboxes, comboboxes));
-        }
-
-        auto fileDialog = FileDialogHelper::createFileDialogHelper();
-        Utils::setParentWindow(&fileDialog->dialog(), parent_window);
-        fileDialog->setWindowTitle(title);
-        fileDialog->setModal(modalDialog);
-        fileDialog->setFileMode(directory ? QFileDialog::Directory : (multipleFiles ? QFileDialog::ExistingFiles : QFileDialog::ExistingFile));
-        if (!acceptLabel.isEmpty())
-            fileDialog->setLabelText(QFileDialog::Accept, acceptLabel);
-
-        if (currentFolder.isValid()) {
-            fileDialog->setDirectory(currentFolder);
-        } else if (mLastVisitedDirs.count(parent_window) > 0) {
-            fileDialog->setDirectory(mLastVisitedDirs[parent_window]);
-        }
-
-        if (!nameFilters.isEmpty()) {
-            fileDialog->setNameFilters(nameFilters);
-            fileDialog->selectNameFilter(selectedNameFilter);
-        }
-
-        bool bHasOptions = false;
-        if (optionsWidget) {
-            if (auto layout = fileDialog->dialog().layout()) {
-                layout->addWidget(optionsWidget.release());
-                bHasOptions = true;
+        // open directory
+        if (directory && !options.contains(QStringLiteral("choices"))) {
+            QString newTitle = title;
+            // change title
+            if (newTitle.contains(QString(STR_FILE))) {
+                newTitle.replace(QString(STR_FILE), QString(STR_DIRECTORY));
             }
-        }
-
-        if (fileDialog->execResult() == QDialog::Accepted) {
-            QStringList files;
-            for (const auto & url : fileDialog->selectedFiles()) {
-                files << url.toDisplayString();
-            }
-
-            if (files.isEmpty()) {
-                qCDebug(XdgDesktopPortalLxqtFileChooser) << "Failed to open file: no local file selected";
+            // construct qtfiledialog command
+            QString qCmd = QString(FILEDIALOG_CMD_WITH_TITLE).arg(newTitle);
+            // add directory argument
+            qCmd.append(QString(DIRECTORY_ARG));
+            qCDebug(XdgDesktopPortalLxqtFileChooser) << "    command: " << qCmd;
+            string cmd = qCmd.toStdString();
+            auto ret = execute_cmd(cmd.c_str());
+            // parse result
+            QStringList directories;
+            directories << QString::fromStdString(ret.first);
+            if (directories.isEmpty()) {
+                qCDebug(XdgDesktopPortalLxqtFileChooser) << "Failed to open directory: no local directory selected";
                 return 2;
             }
 
-            results.insert(QStringLiteral("uris"), files);
+            results.insert(QStringLiteral("uris"), directories);
             results.insert(QStringLiteral("writable"), true);
-
-            if (bHasOptions) {
-                QVariant choices = EvaluateSelectedChoices(checkboxes, comboboxes);
-                results.insert(QStringLiteral("choices"), choices);
-            }
-
-            // try to map current filter back to one of the predefined ones
-            QString selectedFilter = fileDialog->selectedNameFilter();
-            if (allFilters.contains(selectedFilter)) {
-                results.insert(QStringLiteral("current_filter"), QVariant::fromValue<FilterList>(allFilters.value(selectedFilter)));
-            }
-
-            mLastVisitedDirs[parent_window] = fileDialog->directory();
 
             return 0;
         }
 
-        return 1;
+        // construct qtfiledialog command
+        QString qCmd = QString(FILEDIALOG_CMD_WITH_TITLE).arg(title);
+        if (!nameFilters.isEmpty()) {
+            // nameFilters is string list
+            // ex: [ "Custom Files (*.jpg *.JPG *.png *.PNG)", "All Files (*.*)" ]
+            // join string list by comma for qtfiledialog argument
+            qCmd.append(QString(NAMEFILTER_ARG).arg(nameFilters.join(STR_COMMA)));
+        }
+        qCDebug(XdgDesktopPortalLxqtFileChooser) << "    command: " << qCmd;
+        string cmd = qCmd.toStdString();
+        auto ret = execute_cmd(cmd.c_str());
+        // parse result
+        QStringList files;
+        files << QString::fromStdString(ret.first);
+
+        if (files.isEmpty()) {
+            qCDebug(XdgDesktopPortalLxqtFileChooser) << "Failed to open file: no local file selected";
+            return 2;
+        }
+
+        results.insert(QStringLiteral("uris"), files);
+        results.insert(QStringLiteral("writable"), true);
+
+        return 0;
     }
 
     uint FileChooserPortal::SaveFile(const QDBusObjectPath &handle,
@@ -339,154 +328,29 @@ namespace LXQt
 
         ExtractFilters(options, nameFilters, allFilters, selectedNameFilter);
 
-        // for handling of options - choices
-        std::unique_ptr<QWidget> optionsWidget;
-        // to store IDs for choices along with corresponding comboboxes/checkboxes
-        QMap<QString, QCheckBox *> checkboxes;
-        QMap<QString, QComboBox *> comboboxes;
-
-        if (options.contains(QStringLiteral("choices"))) {
-            OptionList optionList = qdbus_cast<OptionList>(options.value(QStringLiteral("choices")));
-            optionsWidget.reset(CreateChoiceControls(optionList, checkboxes, comboboxes));
-        }
-
-        auto fileDialog = FileDialogHelper::createFileDialogHelper();
-        Utils::setParentWindow(&fileDialog->dialog(), parent_window);
-        fileDialog->setWindowTitle(title);
-        fileDialog->setModal(modalDialog);
-        fileDialog->setFileMode(QFileDialog::AnyFile);
-        fileDialog->setAcceptMode(QFileDialog::AcceptSave);
-        if (!acceptLabel.isEmpty())
-            fileDialog->setLabelText(QFileDialog::Accept, acceptLabel);
-
-        if (currentFolder.isValid()) {
-            fileDialog->setDirectory(currentFolder);
-        } else if (mLastVisitedDirs.count(parent_window) > 0) {
-            fileDialog->setDirectory(mLastVisitedDirs[parent_window]);
-        }
-
-        if (currentFile.isValid()) {
-            fileDialog->selectFile(currentFile);
-        } else if (!currentName.isEmpty()) {
-            // Fm::FileDialog::directory() returns url w/o trailing slash, so QUrl treats it as file instead of a directory
-            // => we need to workaround it to get correct file with QUrl::resolved()
-            const QUrl dir = fileDialog->directory();
-            QString dir_name = dir.fileName();
-            if (!dir_name.isEmpty())
-            {
-                dir_name += QLatin1Char('/');
-                currentName.prepend(dir_name);
-            }
-            QUrl relative_file;
-            relative_file.setPath(currentName);
-            fileDialog->selectFile(dir.resolved(relative_file));
-        }
-
+        // construct qtfiledialog command
+        QString qCmd = QString(FILEDIALOG_CMD_WITH_TITLE).arg(title);
         if (!nameFilters.isEmpty()) {
-            fileDialog->setNameFilters(nameFilters);
-            fileDialog->selectNameFilter(selectedNameFilter);
+            // nameFilters is string list
+            // ex: [ "Custom Files (*.jpg *.JPG *.png *.PNG)", "All Files (*.*)" ]
+            // join string list by comma for qtfiledialog argument
+            qCmd.append(QString(NAMEFILTER_ARG).arg(nameFilters.join(STR_COMMA)));
+        }
+        qCDebug(XdgDesktopPortalLxqtFileChooser) << "    command: " << qCmd;
+        string cmd = qCmd.toStdString();
+        auto ret = execute_cmd(cmd.c_str());
+        // parse result
+        QStringList files;
+        files << QString::fromStdString(ret.first);
+
+        if (files.isEmpty()) {
+            qCDebug(XdgDesktopPortalLxqtFileChooser) << "Failed to open file: no local file selected";
+            return 2;
         }
 
-        bool bHasOptions = false;
-        if (optionsWidget) {
-            if (auto layout = fileDialog->dialog().layout()) {
-                layout->addWidget(optionsWidget.release());
-                bHasOptions = true;
-            }
-        }
+        results.insert(QStringLiteral("uris"), files);
 
-        if (fileDialog->execResult() == QDialog::Accepted) {
-            QStringList files;
-            for (const auto & url : fileDialog->selectedFiles()) {
-                files << url.toDisplayString();
-                break;
-            }
-            results.insert(QStringLiteral("uris"), files);
-
-            if (bHasOptions) {
-                QVariant choices = EvaluateSelectedChoices(checkboxes, comboboxes);
-                results.insert(QStringLiteral("choices"), choices);
-            }
-
-            // try to map current filter back to one of the predefined ones
-            QString selectedFilter = fileDialog->selectedNameFilter();
-            if (allFilters.contains(selectedFilter)) {
-                results.insert(QStringLiteral("current_filter"), QVariant::fromValue<FilterList>(allFilters.value(selectedFilter)));
-            }
-
-            mLastVisitedDirs[parent_window] = fileDialog->directory();
-
-            return 0;
-        }
-
-        return 1;
-    }
-
-    QWidget *FileChooserPortal::CreateChoiceControls(const FileChooserPortal::OptionList &optionList,
-            QMap<QString, QCheckBox *> &checkboxes,
-            QMap<QString, QComboBox *> &comboboxes)
-    {
-        if (optionList.empty()) {
-            return nullptr;
-        }
-
-        QWidget *optionsWidget = new QWidget;
-        QGridLayout *layout = new QGridLayout(optionsWidget);
-        // set stretch for (unused) column 2 so controls only take the space they actually need
-        layout->setColumnStretch(2, 1);
-        optionsWidget->setLayout(layout);
-
-        for (const Option &option : optionList) {
-            const int nextRow = layout->rowCount();
-            // empty list of choices -> boolean choice according to the spec
-            if (option.choices.empty()) {
-                QCheckBox *checkbox = new QCheckBox(option.label, optionsWidget);
-                checkbox->setChecked(option.initialChoiceId == QStringLiteral("true"));
-                layout->addWidget(checkbox, nextRow, 1);
-                checkboxes.insert(option.id, checkbox);
-            } else {
-                QComboBox *combobox = new QComboBox(optionsWidget);
-                for (const Choice &choice : option.choices) {
-                    combobox->addItem(choice.value, choice.id);
-                    // select this entry if initialChoiceId matches
-                    if (choice.id == option.initialChoiceId) {
-                        combobox->setCurrentIndex(combobox->count() - 1);
-                    }
-                }
-                QString labelText = option.label;
-                if (!labelText.endsWith(QChar::fromLatin1(':'))) {
-                    labelText += QChar::fromLatin1(':');
-                }
-                QLabel *label = new QLabel(labelText, optionsWidget);
-                label->setBuddy(combobox);
-                layout->addWidget(label, nextRow, 0, Qt::AlignRight);
-                layout->addWidget(combobox, nextRow, 1);
-                comboboxes.insert(option.id, combobox);
-            }
-        }
-
-        return optionsWidget;
-    }
-
-    QVariant FileChooserPortal::EvaluateSelectedChoices(const QMap<QString, QCheckBox *> &checkboxes, const QMap<QString, QComboBox *> &comboboxes)
-    {
-        Choices selectedChoices;
-        const auto checkboxKeys = checkboxes.keys();
-        for (const QString &id : checkboxKeys) {
-            Choice choice;
-            choice.id = id;
-            choice.value = checkboxes.value(id)->isChecked() ? QStringLiteral("true") : QStringLiteral("false");
-            selectedChoices << choice;
-        }
-        const auto comboboxKeys = comboboxes.keys();
-        for (const QString &id : comboboxKeys) {
-            Choice choice;
-            choice.id = id;
-            choice.value = comboboxes.value(id)->currentData().toString();
-            selectedChoices << choice;
-        }
-
-        return QVariant::fromValue<Choices>(selectedChoices);
+        return 0;
     }
 
     QString FileChooserPortal::ExtractAcceptLabel(const QVariantMap &options)

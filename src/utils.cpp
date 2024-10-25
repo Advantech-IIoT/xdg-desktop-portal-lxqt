@@ -1,42 +1,29 @@
-/* BEGIN_COMMON_COPYRIGHT_HEADER
- * (c)LGPL2+
- *
- * LXQt - a lightweight, Qt based, desktop toolset
- * https://lxqt-project.org
- *
- * Copyright: 2018 Alexander Volkov <a.volkov@rusbitech.ru>
- * Copyright: 2021~ LXQt team
- * Authors:
- *   Palo Kisa <palo.kisa@gmail.com>
- *
- * This program or library is free software; you can redistribute it
- * and/or modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
-
- * You should have received a copy of the GNU Lesser General
- * Public License along with this library; if not, write to the
- * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
- * Boston, MA 02110-1301 USA
- *
- * END_COMMON_COPYRIGHT_HEADER */
+// Copyright (C) 2024 The Advantech Company Ltd.
+// SPDX-License-Identifier: GPL-3.0-only
 
 #include "utils.h"
 
-#include <KWindowSystem>
+#include <array>
+#include <QDebug>
 
-#include <QString>
-#include <QWidget>
+using namespace std;
 
-void Utils::setParentWindow(QWidget *w, const QString &parent_window)
+pair<string, int> execute_cmd(const char *cmd)
 {
-    if (parent_window.startsWith(QLatin1String("x11:"))) {
-        w->setAttribute(Qt::WA_NativeWindow, true);
-        KWindowSystem::setMainWindow(w->windowHandle(), parent_window.mid(4).toULongLong(nullptr, 16));
+    array<char, 256> buffer;
+    string result;
+    auto pipe = popen(cmd, "r");
+    if (!pipe)
+    {
+        qDebug("popen() failed!");
+        return make_pair(result, EXIT_FAILURE);
     }
+    while (!feof(pipe))
+    {
+        if (fgets(buffer.data(), buffer.size(), pipe) != nullptr)
+            result += buffer.data();
+    }
+    auto rc = pclose(pipe);
+    qDebug("cmd:%s value:%s", cmd, result.c_str());
+    return make_pair(result, rc);
 }

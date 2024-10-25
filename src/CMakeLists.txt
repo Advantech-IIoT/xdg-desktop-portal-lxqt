@@ -21,8 +21,6 @@ target_link_libraries(xdg-desktop-portal-lxqt
     Qt6::Core
     Qt6::DBus
     Qt6::Widgets
-    fm-qt6
-    KF6::WindowSystem
 )
 
 install(TARGETS xdg-desktop-portal-lxqt DESTINATION ${CMAKE_INSTALL_FULL_LIBEXECDIR})

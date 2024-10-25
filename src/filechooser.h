@@ -26,6 +26,8 @@
  * Boston, MA 02110-1301 USA
  *
  * END_COMMON_COPYRIGHT_HEADER */
+// Copyright (C) 2024 The Advantech Company Ltd.
+// SPDX-License-Identifier: GPL-3.0-only
 
 #pragma once
 

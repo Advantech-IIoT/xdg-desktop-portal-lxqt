@@ -5,8 +5,6 @@ set(PROJECT_VERSION "1.4.0")
 project(xdg-desktop-portal-lxqt VERSION ${PROJECT_VERSION})
 
 set(QT_MIN_VERSION "6.6.0")
-set(LIBFMQT_MINIMUM_VERSION "2.4.0")
-set(KF6_MIN_VERSION "6.0.0")
 
 set(CMAKE_AUTOMOC on)
 
@@ -18,13 +16,6 @@ find_package(Qt6 ${QT_MIN_VERSION} CONFIG REQUIRED COMPONENTS
     DBus
     Widgets
 )
-
-if (Qt6Gui_VERSION VERSION_GREATER_EQUAL "6.10.0")
-    find_package(Qt6GuiPrivate REQUIRED)
-endif()
-
-find_package(fm-qt6 ${LIBFMQT_MINIMUM_VERSION} REQUIRED)
-find_package(KF6WindowSystem ${KF6_MIN_VERSION} REQUIRED)
 
 add_subdirectory(data)
 add_subdirectory(src)

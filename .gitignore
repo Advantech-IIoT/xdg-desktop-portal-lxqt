@@ -1,0 +1,7 @@
+output/
+_obj/
+.vscode/
+scripts/out/
+ODM/logo_output
+./images/
+build*/

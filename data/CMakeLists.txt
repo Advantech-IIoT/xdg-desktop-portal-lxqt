@@ -1,4 +1,3 @@
-configure_file(org.freedesktop.impl.portal.desktop.lxqt.desktop.in org.freedesktop.impl.portal.desktop.lxqt.desktop @ONLY)
 configure_file(org.freedesktop.impl.portal.desktop.lxqt.service.in org.freedesktop.impl.portal.desktop.lxqt.service @ONLY)
 configure_file(xdg-desktop-portal-lxqt.service.in xdg-desktop-portal-lxqt.service @ONLY)
 

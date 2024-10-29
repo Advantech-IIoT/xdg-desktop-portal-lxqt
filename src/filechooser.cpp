@@ -46,6 +46,7 @@
 #define FILEDIALOG_CMD_WITH_TITLE "/usr/local/bin/qtfiledialog -t '%1'"
 #define NAMEFILTER_ARG " -f '%1'"
 #define DIRECTORY_ARG " -d"
+#define SAVEFILE_ARG " -s"
 #define STDERR_TO_NULL " 2>/dev/null"
 
 // Keep in sync with qflatpakfiledialog from flatpak-platform-plugin
@@ -336,6 +337,8 @@ namespace LXQt
             // join string list by comma for qtfiledialog argument
             qCmd.append(QString(NAMEFILTER_ARG).arg(nameFilters.join(STR_COMMA)));
         }
+        // add save file argument
+        qCmd.append(QString(SAVEFILE_ARG));
         qCDebug(XdgDesktopPortalLxqtFileChooser) << "    command: " << qCmd;
         string cmd = qCmd.toStdString();
         auto ret = execute_cmd(cmd.c_str());

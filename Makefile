@@ -36,8 +36,10 @@ generate-makefile:
 
 install:
 	@echo "install xdg-desktop-portal-lxqt"
+	mkdir -p $(DESTINATION_PATH)/usr/local/libexec
 	cp build/xdg-desktop-portal-lxqt $(DESTINATION_PATH)/usr/local/libexec/
 	cp build/org.freedesktop.impl.portal.desktop.lxqt.service $(DESTINATION_PATH)/usr/share/dbus-1/services/
+	mkdir -p $(DESTINATION_PATH)/usr/local/share/xdg-desktop-portal/portals/
 	cp build/lxqt.portal $(DESTINATION_PATH)/usr/local/share/xdg-desktop-portal/portals/
 	cp build/lxqt-portals.conf $(DESTINATION_PATH)/usr/local/share/xdg-desktop-portal/
 	mkdir -p $(DESTINATION_PATH)/usr/share/common-licenses/xdg-desktop-portal-lxqt

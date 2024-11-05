@@ -1,3 +1,7 @@
+# Backends
+There are several different xdg-desktoip-portal backends.
+https://wiki.archlinux.org/title/XDG_Desktop_Portal
+
 # xdg-desktop-portal-lxqt
 
 A backend implementation for [xdg-desktop-portal](http://github.com/flatpak/xdg-desktop-portal)

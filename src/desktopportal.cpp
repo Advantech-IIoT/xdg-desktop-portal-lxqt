@@ -29,7 +29,6 @@
 // Copyright (C) 2024 The Advantech Company Ltd.
 // SPDX-License-Identifier: GPL-3.0-only
 
-#include "access.h"
 #include "desktopportal.h"
 #include "filechooser.h"
 
@@ -37,7 +36,6 @@ namespace LXQt
 {
     DesktopPortal::DesktopPortal(QObject *parent)
         : QObject(parent)
-        , m_access{new AccessPortal{this}}
         , m_fileChooser{new FileChooserPortal{this}}
     {
     }

@@ -29,7 +29,6 @@
 // Copyright (C) 2024 The Advantech Company Ltd.
 // SPDX-License-Identifier: GPL-3.0-only
 
-#include "choices.h"
 #include "filechooser.h"
 #include "utils.h"
 
@@ -113,7 +112,6 @@ namespace LXQt
         qDBusRegisterMetaType<Filters>();
         qDBusRegisterMetaType<FilterList>();
         qDBusRegisterMetaType<FilterListList>();
-        registerChoiceMetaTypes();
     }
 
     FileChooserPortal::~FileChooserPortal()
@@ -180,34 +178,6 @@ namespace LXQt
 
         ExtractFilters(options, nameFilters, allFilters, selectedNameFilter);
         qCDebug(XdgDesktopPortalLxqtFileChooser) << "    nameFilters: " << nameFilters.join(STR_COMMA);
-
-        // open directory
-        if (directory && !options.contains(QStringLiteral("choices"))) {
-            QString newTitle = title;
-            // change title
-            if (newTitle.contains(QString(STR_FILE))) {
-                newTitle.replace(QString(STR_FILE), QString(STR_DIRECTORY));
-            }
-            // construct qtfiledialog command
-            QString qCmd = QString(FILEDIALOG_CMD_WITH_TITLE).arg(newTitle);
-            // add directory argument
-            qCmd.append(QString(DIRECTORY_ARG));
-            qCDebug(XdgDesktopPortalLxqtFileChooser) << "    command: " << qCmd;
-            string cmd = qCmd.toStdString();
-            auto ret = execute_cmd(cmd.c_str());
-            // parse result
-            QStringList directories;
-            directories << QString::fromStdString(ret.first);
-            if (directories.isEmpty()) {
-                qCDebug(XdgDesktopPortalLxqtFileChooser) << "Failed to open directory: no local directory selected";
-                return 2;
-            }
-
-            results.insert(QStringLiteral("uris"), directories);
-            results.insert(QStringLiteral("writable"), true);
-
-            return 0;
-        }
 
         // construct qtfiledialog command
         QString qCmd = QString(FILEDIALOG_CMD_WITH_TITLE).arg(title);
@@ -311,7 +281,7 @@ namespace LXQt
         QString acceptLabel;
         if (options.contains(QStringLiteral("accept_label"))) {
             acceptLabel = options.value(QStringLiteral("accept_label")).toString();
-            Utils::convertGtkMnemonic(acceptLabel);
+            //Utils::convertGtkMnemonic(acceptLabel);
         }
         return acceptLabel;
     }

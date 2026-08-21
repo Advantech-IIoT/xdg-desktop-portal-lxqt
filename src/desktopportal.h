@@ -36,7 +36,6 @@
 
 namespace LXQt
 {
-    class AccessPortal;
     class FileChooserPortal;
 
     class DesktopPortal : public QObject, public QDBusContext
@@ -46,7 +45,6 @@ namespace LXQt
         explicit DesktopPortal(QObject *parent = nullptr);
 
     private:
-        AccessPortal *m_access;
         FileChooserPortal *m_fileChooser;
     };
 }

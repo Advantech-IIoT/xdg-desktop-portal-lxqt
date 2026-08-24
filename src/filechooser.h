@@ -82,6 +82,8 @@ namespace LXQt
                 QString &selectedNameFilter);
 
         static QStringList NameFiltersForMimeType(const QString &mimeType);
+        static QString collapseCaseInsensitive(const QString &pattern);
+        static QStringList convertPortalNameFiltersToQml(const QStringList &input);
 
     private:
         QMap<QString, QUrl> mLastVisitedDirs;

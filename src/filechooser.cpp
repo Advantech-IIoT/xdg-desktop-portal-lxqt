@@ -40,6 +40,7 @@
 #include <QMimeDatabase>
 #include <QUrl>
 #include <QDBusObjectPath>
+#include <QRegularExpression>
 
 #define STR_COMMA ","
 #define STR_FILE "File"
@@ -134,6 +135,94 @@ namespace LXQt
         return QUrl();
     }
 
+    // make "[pP][nN][gG]" to simple png
+    QString FileChooserPortal::collapseCaseInsensitive(const QString &pattern)
+    {
+        QString result;
+        result.reserve(pattern.size());
+
+        int i = 0;
+        const int n = pattern.size();
+        while (i < n) {
+            // Handle [aA] / [AA] / [aa]
+            if (i + 3 < n &&
+                pattern[i] == QLatin1Char('[') &&
+                pattern[i + 3] == QLatin1Char(']')) {
+                // aA to a
+                const QChar c1 = pattern[i + 1];
+                const QChar c2 = pattern[i + 2];
+                if (c1.toLower() == c2.toLower()) {
+                    result += c1.toLower();
+                    i += 4;
+                    continue;
+                }
+            }
+            result += pattern[i].toLower();
+            ++i;
+        }
+
+        return result;
+    }
+
+    QStringList FileChooserPortal::convertPortalNameFiltersToQml(const QStringList &input)
+    {
+        QStringList result;
+        result.reserve(input.size());
+
+        // match namefilter pattern "Label (pattern1 pattern2 ...)"
+        // ex: [ "Custom Files (*.[pP][nN][gG] *.[pP][jJ][pP][eE][gG] *.[pP][jJ][pP] *.[jJ][fF][iI][fF] *.[jJ][pP][gG] *.[jJ][pP][eE][gG]),All Files (*.*)" ]
+        static const QRegularExpression groupRe(QStringLiteral(R"(^\s*(.*?)\s*\((.*)\)\s*$)"));
+
+        for (const QString &rawItem : input) {
+            QString rawGroup = rawItem.trimmed();
+
+            // trim ""
+            if (rawGroup.size() >= 2 &&
+                rawGroup.front() == QLatin1Char('"') &&
+                rawGroup.back() == QLatin1Char('"')) {
+                rawGroup = rawGroup.mid(1, rawGroup.size() - 2);
+            }
+
+            const QRegularExpressionMatch match = groupRe.match(rawGroup);
+            if (!match.hasMatch()) {
+                qWarning() << "cannot parse filter item, skipping:" << rawGroup;
+                continue;
+            }
+
+            const QString label = match.captured(1).trimmed();
+            const QString extsPart = match.captured(2).trimmed();
+
+            const QStringList rawExts = extsPart.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+
+            QStringList cleanExts;
+            cleanExts.reserve(rawExts.size());
+            for (const QString &rawExt : rawExts) {
+                cleanExts << collapseCaseInsensitive(rawExt);
+            }
+
+            // trim duplicate item (e.g., if both *.jpg and *.JPG appear, they will be duplicated after expansion)
+            QStringList dedupExts;
+            for (const QString &ext : cleanExts) {
+                bool exists = false;
+                for (const QString &e : dedupExts) {
+                    if (e.compare(ext, Qt::CaseInsensitive) == 0) {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists)
+                    dedupExts << ext;
+            }
+
+            const QString filterStr =
+                QStringLiteral("%1 (%2)").arg(label, dedupExts.join(QLatin1Char(' ')));
+
+            result << filterStr;
+        }
+
+        return result;
+    }
+
     uint FileChooserPortal::OpenFile(const QDBusObjectPath &handle,
             const QString &app_id,
             const QString &parent_window,
@@ -183,9 +272,10 @@ namespace LXQt
         QString qCmd = QString(FILEDIALOG_CMD_WITH_TITLE).arg(title);
         if (!nameFilters.isEmpty()) {
             // nameFilters is string list
-            // ex: [ "Custom Files (*.jpg *.JPG *.png *.PNG)", "All Files (*.*)" ]
+            // ex: [ "Custom Files (*.[pP][nN][gG] *.[pP][jJ][pP][eE][gG] *.[pP][jJ][pP] *.[jJ][fF][iI][fF] *.[jJ][pP][gG] *.[jJ][pP][eE][gG]),All Files (*.*)" ]
             // join string list by comma for qtfiledialog argument
-            qCmd.append(QString(NAMEFILTER_ARG).arg(nameFilters.join(STR_COMMA)));
+            const QStringList qmlFilters = convertPortalNameFiltersToQml(nameFilters);
+            qCmd.append(QString(NAMEFILTER_ARG).arg(qmlFilters.join(STR_COMMA)));
         }
         qCDebug(XdgDesktopPortalLxqtFileChooser) << "    command: " << qCmd;
         string cmd = qCmd.toStdString();

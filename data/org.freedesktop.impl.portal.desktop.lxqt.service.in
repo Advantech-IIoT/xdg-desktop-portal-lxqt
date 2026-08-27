@@ -1,4 +1,3 @@
 [D-BUS Service]
 Name=org.freedesktop.impl.portal.desktop.lxqt
-Exec=/bin/sh -c 'source /etc/profile; QT_QPA_PLATFORMTHEME=lxqt /usr/local/libexec/xdg-desktop-portal-lxqt'
-SystemdService=xdg-desktop-portal-lxqt.service
+Exec=/usr/bin/sh -c 'source /etc/profile; source /usr/share/xdg-desktop-portal/weston-env.sh; QT_QPA_PLATFORMTHEME=lxqt /usr/local/libexec/xdg-desktop-portal-lxqt'
